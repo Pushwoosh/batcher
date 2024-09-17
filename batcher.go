@@ -44,6 +44,11 @@ func New[T any](d time.Duration, capacity int) *Batcher[T] {
 				return
 			}
 
+			if len(obj.buffer) == 0 {
+				obj.mu.Unlock()
+				continue
+			}
+
 			obj.makeBatch()
 			obj.mu.Unlock()
 		}
