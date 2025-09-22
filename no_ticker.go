@@ -1,6 +1,9 @@
 package batcher
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
 // NoTicker collects buffer and flushes only by size or when closed.
 type NoTicker[T any] struct {
@@ -22,19 +25,29 @@ func NewNoTicker[T any](capacity int) *NoTicker[T] {
 
 // Add adds an item to the batcher. If batch is full, it flushes.
 func (b *NoTicker[T]) Add(item T) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
-		return
-	}
-	b.buffer = append(b.buffer, item)
-	if len(b.buffer) >= b.capacity {
-		b.flush()
+	err := b.AddE(item)
+	if err != nil {
+		panic(err)
 	}
 }
 
-// flush sends the current batch and resets buffer.
-func (b *NoTicker[T]) flush() {
+// AddE adds an item to the batcher and returns error if closed.
+func (b *NoTicker[T]) AddE(item T) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.closed {
+		return errors.New("batcher is closed")
+	}
+
+	b.buffer = append(b.buffer, item)
+	if len(b.buffer) >= b.capacity {
+		b.makeBatch()
+	}
+	return nil
+}
+
+func (b *NoTicker[T]) makeBatch() {
 	if len(b.buffer) == 0 {
 		return
 	}
@@ -44,20 +57,21 @@ func (b *NoTicker[T]) flush() {
 	b.output <- batch
 }
 
-// Out returns the output channel for flushed batches.
-func (b *NoTicker[T]) Out() <-chan []T {
+// C returns a channel that will receive batches.
+func (b *NoTicker[T]) C() <-chan []T {
 	return b.output
 }
 
 // Close flushes any remaining buffer and closes the output channel.
 func (b *NoTicker[T]) Close() {
 	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.closed {
-		b.mu.Unlock()
 		return
 	}
+
 	b.closed = true
-	b.flush()
+	b.makeBatch()
 	close(b.output)
-	b.mu.Unlock()
 }
