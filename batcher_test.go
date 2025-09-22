@@ -27,11 +27,11 @@ func TestBatcherRaceCondition(t *testing.T) {
 		}
 	}()
 
-	// Add items in bursts that could trigger the race condition
+	// Add buffer in bursts that could trigger the race condition
 	// This simulates high-frequency adds that reach capacity
 	// while timer is also trying to flush
 	for burst := 0; burst < 5; burst++ {
-		// Add exactly capacity items quickly
+		// Add exactly capacity buffer quickly
 		for i := 0; i < capacity; i++ {
 			b.Add(i)
 		}
@@ -51,7 +51,7 @@ func TestBatcherRaceCondition(t *testing.T) {
 		t.Fatal("Expected at least one batch")
 	}
 
-	// Count items and verify no duplicates/losses
+	// Count buffer and verify no duplicates/losses
 	totalItems := 0
 	capacityBasedBatches := 0
 
@@ -70,10 +70,10 @@ func TestBatcherRaceCondition(t *testing.T) {
 		}
 	}
 
-	// We added 5 bursts of 10 items = 50 total
+	// We added 5 bursts of 10 buffer = 50 total
 	expectedItems := 5 * capacity
 	if totalItems != expectedItems {
-		t.Errorf("Expected %d items total, got %d", expectedItems, totalItems)
+		t.Errorf("Expected %d buffer total, got %d", expectedItems, totalItems)
 	}
 
 	// Most batches should be capacity-based since we're adding in exact multiples
@@ -102,7 +102,7 @@ func TestBatcherTimerReset(t *testing.T) {
 		}
 	}()
 
-	// Add exactly capacity items (should trigger immediate batch)
+	// Add exactly capacity buffer (should trigger immediate batch)
 	for i := 0; i < capacity; i++ {
 		b.Add(i)
 	}
@@ -124,7 +124,7 @@ func TestBatcherTimerReset(t *testing.T) {
 
 	// First batch should be at capacity
 	if len(batches[0]) != capacity {
-		t.Errorf("First batch should have %d items, got %d", capacity, len(batches[0]))
+		t.Errorf("First batch should have %d buffer, got %d", capacity, len(batches[0]))
 	}
 
 	// Second batch should have 1 item (from timer)
@@ -167,7 +167,7 @@ func TestBatcherConcurrency(t *testing.T) {
 		}
 	}()
 
-	// Start multiple goroutines adding items concurrently
+	// Start multiple goroutines adding buffer concurrently
 	var wg sync.WaitGroup
 	for g := 0; g < numGoroutines; g++ {
 		wg.Add(1)
@@ -183,7 +183,7 @@ func TestBatcherConcurrency(t *testing.T) {
 	time.Sleep(timeout * 2) // Let final timer-based batch flush
 	b.Close()
 
-	// Verify all items were processed exactly once
+	// Verify all buffer were processed exactly once
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -199,8 +199,8 @@ func TestBatcherConcurrency(t *testing.T) {
 
 	expectedItems := numGoroutines * itemsPerGoroutine
 	if totalItems != expectedItems {
-		t.Errorf("Expected %d items total, got %d", expectedItems, totalItems)
+		t.Errorf("Expected %d buffer total, got %d", expectedItems, totalItems)
 	}
 
-	t.Logf("Processed %d items in %d batches", totalItems, len(batches))
+	t.Logf("Processed %d buffer in %d batches", totalItems, len(batches))
 }
