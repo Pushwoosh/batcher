@@ -9,6 +9,9 @@ import (
 // Batcher is a structure that collects items and flushes buffer
 // either when the buffer fills up or when timeout is reached.
 // See examples/batcher/batcher.go for usage example.
+//
+// The consumer must read C() until it is closed: output holds only 10 batches,
+// and once it is full Add, AddE and Close block until a batch is received.
 type Batcher[T any] struct {
 	ticker   *time.Ticker
 	duration time.Duration
@@ -72,6 +75,7 @@ func New[T any](d time.Duration, capacity int) *Batcher[T] {
 }
 
 // Add adds an item to the batcher.
+// It blocks while the output channel is full, see Batcher.
 func (b *Batcher[T]) Add(item T) {
 	err := b.AddE(item)
 	if err != nil {
@@ -101,11 +105,13 @@ func (b *Batcher[T]) AddE(item T) error {
 }
 
 // C returns a channel that will receive batches.
+// It is closed by Close and must be drained until then.
 func (b *Batcher[T]) C() <-chan []T {
 	return b.output
 }
 
-// Close closes the batcher.
+// Close flushes the remaining items and closes C().
+// It blocks if C() is full and nobody reads it.
 func (b *Batcher[T]) Close() {
 	b.mu.Lock()
 	defer b.mu.Unlock()

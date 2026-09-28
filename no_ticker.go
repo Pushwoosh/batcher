@@ -6,6 +6,7 @@ import (
 )
 
 // NoTicker collects buffer and flushes only by size or when closed.
+// As with Batcher, Out() must be drained, otherwise Add and Close block.
 type NoTicker[T any] struct {
 	capacity int
 	buffer   []T

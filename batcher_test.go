@@ -210,7 +210,8 @@ func TestBatcherConcurrency(t *testing.T) {
 }
 
 func TestBatcherCloseStopsTickerGoroutine(t *testing.T) {
-	// Every closed batcher must release its ticker goroutine
+	// Every closed batcher must release its ticker goroutine,
+	// so the goroutine count has to return exactly to the baseline
 	const n = 1000
 	before := runtime.NumGoroutine()
 
@@ -223,11 +224,11 @@ func TestBatcherCloseStopsTickerGoroutine(t *testing.T) {
 	}
 
 	deadline := time.Now().Add(time.Second)
-	for runtime.NumGoroutine() > before+10 && time.Now().Before(deadline) {
+	for runtime.NumGoroutine() > before && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	if after := runtime.NumGoroutine(); after > before+10 {
+	if after := runtime.NumGoroutine(); after > before {
 		t.Fatalf("goroutines leaked: before %d, after %d", before, after)
 	}
 }
