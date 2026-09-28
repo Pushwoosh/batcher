@@ -16,10 +16,11 @@ type Batcher[T any] struct {
 
 	buffer []T
 	output chan []T
+	done   chan struct{}
 
-	mu     sync.Mutex
-	closed bool
-	timerReset   bool
+	mu         sync.Mutex
+	closed     bool
+	timerReset bool
 }
 
 // New creates a new instance of Batcher.
@@ -36,9 +37,17 @@ func New[T any](d time.Duration, capacity int) *Batcher[T] {
 
 	obj.buffer = make([]T, 0, obj.capacity)
 	obj.output = make(chan []T, 10) // number of batches to keep
+	obj.done = make(chan struct{})
 
 	go func() {
-		for range obj.ticker.C {
+		for {
+			// ticker.Stop does not close ticker.C, so Close signals exit via done
+			select {
+			case <-obj.done:
+				return
+			case <-obj.ticker.C:
+			}
+
 			obj.mu.Lock()
 			// the object may be closed while we were waiting for the lock
 			// it is safe to exit, the last batch has been already processed
@@ -107,6 +116,7 @@ func (b *Batcher[T]) Close() {
 
 	b.ticker.Stop()
 	b.closed = true
+	close(b.done)
 
 	b.makeBatch()
 	close(b.output)
