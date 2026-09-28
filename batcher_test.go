@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -93,9 +94,11 @@ func TestBatcherTimerReset(t *testing.T) {
 	var batches [][]int
 	var timestamps []time.Time
 	start := time.Now()
+	collected := make(chan struct{})
 
 	// Collect batches with timestamps
 	go func() {
+		defer close(collected)
 		for batch := range b.C() {
 			batches = append(batches, batch)
 			timestamps = append(timestamps, time.Now())
@@ -116,6 +119,7 @@ func TestBatcherTimerReset(t *testing.T) {
 	// Wait longer than timeout to ensure timer fires
 	time.Sleep(shortTimeout * 2)
 	b.Close()
+	<-collected
 
 	// Verify we got expected batches
 	if len(batches) != 2 {
@@ -203,4 +207,27 @@ func TestBatcherConcurrency(t *testing.T) {
 	}
 
 	t.Logf("Processed %d buffer in %d batches", totalItems, len(batches))
+}
+
+func TestBatcherCloseStopsTickerGoroutine(t *testing.T) {
+	// Every closed batcher must release its ticker goroutine
+	const n = 1000
+	before := runtime.NumGoroutine()
+
+	for i := 0; i < n; i++ {
+		b := New[int](time.Hour, 10)
+		b.Add(i)
+		b.Close()
+		for range b.C() {
+		}
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for runtime.NumGoroutine() > before+10 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if after := runtime.NumGoroutine(); after > before+10 {
+		t.Fatalf("goroutines leaked: before %d, after %d", before, after)
+	}
 }
